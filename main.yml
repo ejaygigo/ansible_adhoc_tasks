@@ -1,0 +1,123 @@
+---
+- name: Perform adhoc tasks on Linux or Windows systems
+  hosts: all
+  gather_facts: yes
+  vars:
+    - username: ansibleuser
+    - userpassword: PASSWORD
+    - search_pattern: t
+  tasks:
+    - name: Create {{ username }} on Linux system
+      ansible.builtin.user:
+        name: "{{ username }}"
+        password: "{{ userpassword | password_hash('sha512') }}"
+        state: present
+        update_password: on_create
+      become: true
+      become_method: sudo
+      become_user: root
+      when: (ansible_facts['system'] == 'Linux')
+
+    - name:  Create {{ username }} on Windows system
+      ansible.builtin.win_user:
+        name: "{{ username }}"
+        password: "{{ userpassword }}"
+        state: present
+        groups:
+          - Administrators
+      when: (ansible_facts['os_family'] == 'Windows')
+
+    - name: Copy a file to a Linux system
+      ansible.builtin.copy:
+        src: files/copy_this.txt
+        dest: "/home/{{ username }}/copy_this.txt"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0664'
+      become: true
+      become_method: sudo
+      become_user: root
+      when: (ansible_facts['system'] == 'Linux')
+
+    - name:  Create a folder on a Windows system
+      ansible.builtin.win_file:
+        path: C:\Temp\{{ username }}
+        state: directory
+      when: (ansible_facts['os_family'] == 'Windows')
+
+    - name:  Create a file to a Windows system
+      ansible.builtin.win_file:
+        path: C:\Temp\{{ username }}\copy_this.txt
+        state: touch
+      when: (ansible_facts['os_family'] == 'Windows')
+
+    - name:  Copy a file to a Windows system
+      ansible.builtin.win_template:
+        src: copy_this.j2
+        dest: C:\Temp\{{ username }}\copy_this.txt
+      when: (ansible_facts['os_family'] == 'Windows')
+
+    - name: Perform an md5 integrity check on Linux system
+      ansible.builtin.stat:
+        path: "/home/{{ username }}/copy_this.txt"
+        checksum_algorithm: md5
+      register: md5_result_linux
+      become: true
+      when: (ansible_facts['system'] == 'Linux')
+    
+    - name: Perform an md5 integrity check on Windows system
+      ansible.builtin.win_stat:
+        path: C:\Temp\{{ username }}\copy_this.txt
+        get_checksum: yes
+        checksum_algorithm: md5
+      register: md5_result_windows
+      when: (ansible_facts['os_family'] == 'Windows')
+
+    - name: Print md5 checksum on a Linux system
+      ansible.builtin.debug:
+        var: md5_result_linux.stat.checksum
+      become: true
+      become_method: sudo
+      become_user: root
+      when: (ansible_facts['system'] == 'Linux')
+
+    - name: Print md5 checksum on a Windows system
+      ansible.builtin.debug:
+        var: md5_result_windows.stat.checksum
+      when: (ansible_facts['os_family'] == 'Windows')
+
+    - name: Search for a common letter or number on a Linux system
+      ansible.builtin.lineinfile:
+        path: /home/{{ username }}/copy_this.txt
+        regexp: '^{{ search_pattern }}'
+        line: '{{ search_pattern }}'
+      register: search_pattern_result
+      check_mode: true
+      failed_when: search_pattern_result is not changed
+      become: true
+      become_method: sudo
+      become_user: root
+      when: (ansible_facts['system'] == 'Linux')
+    
+    - name: Print search patten on a Linux system
+      ansible.builtin.debug:
+        var: search_pattern
+      become: true
+      become_method: sudo
+      become_user: root
+      when: (ansible_facts['system'] == 'Linux')
+
+    - name: Search for a common letter or number on a Windows system
+      ansible.builtin.win_lineinfile:
+        path: C:\Temp\{{ username }}\copy_this.txt
+        regexp: '^{{ search_pattern }}'
+        line: '{{ search_pattern }}'
+      register: search_pattern_result
+      check_mode: true
+      failed_when: search_pattern_result is not changed
+      when: (ansible_facts['os_family'] == 'Windows')
+
+    - name: Print search patten on a Windows system
+      ansible.builtin.debug:
+        var: search_pattern
+      when: (ansible_facts['os_family'] == 'Windows')
